@@ -3,13 +3,19 @@
 import React, { useState, useEffect } from 'react';
 import PaymentMethod from './payment/PaymentMethod';
 import { useAuth } from '../../../../contexts/AuthContext';
+import busPickupDropData from '../../../../constants/busPickupDropData/BusPickUpDropData';
 
-// This component is now a "container" for the form fields.
-// It does NOT handle the final submission logic itself.
-// It receives bookingDetails and its setter function from its parent (Checkout.js).
+
 const PassengerData = ({ trip, bookingDetails, onBookingDetailsChange }) => {
     const { user } = useAuth();
-    
+
+    // Normalize source / destination from different trip shapes
+    const source = trip?.source || trip?.from || trip?.fromCity || trip?.from_city || trip?.origin || '';
+    const destination = trip?.destination || trip?.to || trip?.toCity || trip?.to_city || trip?.dest || '';
+
+    const pickupOptions = busPickupDropData[source]?.pickups || [];
+    const dropOptions = busPickupDropData[destination]?.drops || [];
+
     // State for form fields managed directly by this component
     const [contactDetails, setContactDetails] = useState({ email: '', phone: '' });
     const [passengers, setPassengers] = useState([]);
@@ -27,7 +33,16 @@ const PassengerData = ({ trip, bookingDetails, onBookingDetailsChange }) => {
             });
             setPassengers(initialPassengers);
         }
-    }, [trip, user]);
+
+        // Initialize bookingDetails pickup/drop defaults when not set
+        // Use the first available pickup/drop option to avoid empty selections
+        if (pickupOptions.length > 0 && (!bookingDetails || !bookingDetails.pickupPoint)) {
+            onBookingDetailsChange({ ...bookingDetails, pickupPoint: pickupOptions[0] });
+        }
+        if (dropOptions.length > 0 && (!bookingDetails || !bookingDetails.dropPoint)) {
+            onBookingDetailsChange({ ...bookingDetails, dropPoint: dropOptions[0] });
+        }
+    }, [trip, user, pickupOptions.length, dropOptions.length, bookingDetails, onBookingDetailsChange]);
 
     // Input handlers for the fields in this component
     const handleContactChange = (e) => {
@@ -39,7 +54,12 @@ const PassengerData = ({ trip, bookingDetails, onBookingDetailsChange }) => {
     const handlePassengerChange = (index, e) => {
         const { name, value } = e.target;
         const updatedPassengers = [...passengers];
-        updatedPassengers[index][name] = value;
+        // For number inputs (age) store a number when possible, otherwise keep empty string
+        if (name === 'age') {
+            updatedPassengers[index][name] = value === '' ? '' : Number(value);
+        } else {
+            updatedPassengers[index][name] = value;
+        }
         setPassengers(updatedPassengers);
         if (errors.passengers?.[index]?.[name]) {
             const updatedErrors = { ...errors };
@@ -54,7 +74,7 @@ const PassengerData = ({ trip, bookingDetails, onBookingDetailsChange }) => {
         const { name, value } = e.target;
         onBookingDetailsChange(prev => ({ ...prev, [name]: value }));
     };
-    
+
     // This validation function is crucial. It stays here and gets passed down
     // to PaymentMethod so it can be called before the API request.
     const validateForm = () => {
@@ -79,7 +99,7 @@ const PassengerData = ({ trip, bookingDetails, onBookingDetailsChange }) => {
                 newErrors.passengers[index] = passengerErrors;
             }
         });
-        
+
         if (newErrors.passengers.length === 0) delete newErrors.passengers;
 
         setErrors(newErrors);
@@ -91,7 +111,7 @@ const PassengerData = ({ trip, bookingDetails, onBookingDetailsChange }) => {
             <h1 className="text-xl text-neutral-700 font-semibold">
                 Passenger & Contact Information
             </h1>
-            
+
             <div className="space-y-7">
                 {/* Contact Details Section */}
                 <div className="p-4 border border-neutral-300 rounded-xl bg-white shadow-sm space-y-4">
@@ -125,7 +145,18 @@ const PassengerData = ({ trip, bookingDetails, onBookingDetailsChange }) => {
                             </div>
                             <div className="w-full space-y-2">
                                 <label className="text-sm text-neutral-500 font-medium">Age *</label>
-                                <input type="number" name="age" value={passenger.age} onChange={(e) => handlePassengerChange(index, e)} min="1" max="120" placeholder='e.g. 25' className={`w-full h-14 px-4 bg-neutral-100/40 border rounded-xl ${errors.passengers?.[index]?.age ? 'border-red-500' : 'border-neutral-400/50'}`} />
+                                {/* Use empty-string fallback so the input stays controlled and
+                                    store numeric values in state when the user types a number */}
+                                <input
+                                    type="number"
+                                    name="age"
+                                    value={passenger.age ?? ''}
+                                    onChange={(e) => handlePassengerChange(index, e)}
+                                    min="1"
+                                    max="120"
+                                    placeholder='e.g. 25'
+                                    className={`w-full h-14 px-4 bg-neutral-100/40 border rounded-xl ${errors.passengers?.[index]?.age ? 'border-red-500' : 'border-neutral-400/50'}`}
+                                />
                                 {errors.passengers?.[index]?.age && <p className="text-red-500 text-sm">{errors.passengers[index].age}</p>}
                             </div>
                             <div className="w-full space-y-2">
@@ -139,34 +170,65 @@ const PassengerData = ({ trip, bookingDetails, onBookingDetailsChange }) => {
                         </div>
                     </div>
                 ))}
-                
+
                 {/* Pickup & Drop Point Section */}
                 <div className="grid md:grid-cols-2 gap-4">
+                    {/* Pickup Point */}
                     <div className="w-full space-y-2">
                         <label className="text-sm text-neutral-500 font-medium">Pickup Point</label>
-                        <select name="pickupPoint" value={bookingDetails.pickupPoint} onChange={handleBookingDetailsChange} className="w-full h-14 px-4 bg-neutral-100/40 border border-neutral-400/50 rounded-xl">
+                        <select
+                            name="pickupPoint"
+                            value={bookingDetails.pickupPoint}
+                            onChange={(e) =>
+                                onBookingDetailsChange({
+                                    ...bookingDetails,
+                                    pickupPoint: e.target.value,
+                                })
+                            }
+                            className="w-full h-14 px-4 bg-neutral-100/40 border border-neutral-400/50 rounded-xl"
+                        >
                             <option value="">Choose a pickup point</option>
-                            {trip?.pickupPoints?.map(point => <option key={point} value={point}>{point}</option>)}
+                            {pickupOptions.map((point) => (
+                                <option key={point} value={point}>
+                                    {point}
+                                </option>
+                            ))}
                         </select>
                     </div>
+
+                    {/* Drop Point */}
                     <div className="w-full space-y-2">
                         <label className="text-sm text-neutral-500 font-medium">Drop Point</label>
-                        <select name="dropPoint" value={bookingDetails.dropPoint} onChange={handleBookingDetailsChange} className="w-full h-14 px-4 bg-neutral-100/40 border border-neutral-400/50 rounded-xl">
+                        <select
+                            name="dropPoint"
+                            value={bookingDetails.dropPoint}
+                            onChange={(e) =>
+                                onBookingDetailsChange({
+                                    ...bookingDetails,
+                                    dropPoint: e.target.value,
+                                })
+                            }
+                            className="w-full h-14 px-4 bg-neutral-100/40 border border-neutral-400/50 rounded-xl"
+                        >
                             <option value="">Choose a drop point</option>
-                            {trip?.dropPoints?.map(point => <option key={point} value={point}>{point}</option>)}
+                            {dropOptions.map((point) => (
+                                <option key={point} value={point}>
+                                    {point}
+                                </option>
+                            ))}
                         </select>
                     </div>
                 </div>
 
                 {/* --- THIS IS THE KEY --- */}
                 {/* Pass all the necessary data and functions down to the smart PaymentMethod component */}
-                <PaymentMethod 
-                  trip={trip}
-                  passengers={passengers}
-                  contactDetails={contactDetails}
-                  bookingDetails={bookingDetails}
-                  onBookingDetailsChange={onBookingDetailsChange}
-                  validateForm={validateForm} 
+                <PaymentMethod
+                    trip={trip}
+                    passengers={passengers}
+                    contactDetails={contactDetails}
+                    bookingDetails={bookingDetails}
+                    onBookingDetailsChange={onBookingDetailsChange}
+                    validateForm={validateForm}
                 />
             </div>
         </div>

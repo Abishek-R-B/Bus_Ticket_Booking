@@ -1,5 +1,5 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import TopLayout from '../../../layout/toppage/TopLayout'
 import RootLayout from '../../../layout/RootLayout'
 import WarningAlert from '../../../components/alertmessage/WarningAlert'
@@ -7,8 +7,40 @@ import BusSeat from './seat/busseat/BusSeat'
 import ToggleBtn from '../../../components/togglebtn/ToggleBtn'
 import Amenities from './amenities/Amenities'
 import ReservationPolicy from './reservationpolicy/ReservationPolicy'
+import { tripAPI } from '../../../services/api'
 
 const Detail = () => {
+
+    // Try to consume the trip from location.state first (fast path),
+    // otherwise fall back to fetching by id (reload-safe).
+    const location = useLocation();
+    const params = useParams();
+    const initialTrip = location.state?.trip ?? null;
+    console.log(initialTrip);
+    console.log("params", params);
+    
+    
+    const [trip, setTrip] = useState(initialTrip);
+    const [loadingTrip, setLoadingTrip] = useState(!initialTrip && !!params.id);
+
+    useEffect(() => {
+        const id = params.id ?? location.state?.trip?.id;
+        if (!trip && id) {
+            setLoadingTrip(true);
+            tripAPI
+                .getTripById(id)
+                .then((res) => {
+                    // tripAPI returns response.data; adjust based on your API helper
+                    const data = res?.data ?? res;
+                    setTrip(data);
+                })
+                .catch((err) => {
+                    console.error('Failed to load trip:', err);
+                })
+                .finally(() => setLoadingTrip(false));
+        }
+    }, [params.id, location.state, trip]);
+
 
   //Warning Message
   const message = (
@@ -36,7 +68,7 @@ const Detail = () => {
                   <WarningAlert message={message}/>
 
                   {/*Seat Layout */}
-                  <BusSeat />
+                  <BusSeat trip={trip} loading={loadingTrip} />
 
 
             </div>

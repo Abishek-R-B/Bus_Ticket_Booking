@@ -1,7 +1,6 @@
 import React from 'react'
 import Hero from './hero/Hero'
-import Services from './services/Services'
-import TopSearch from './topsearch/TopSearch'
+
 
 const Home = () => {
     return (
@@ -9,9 +8,7 @@ const Home = () => {
             
             <Hero />
 
-            <Services />
 
-            <TopSearch />
         </div>
  
 

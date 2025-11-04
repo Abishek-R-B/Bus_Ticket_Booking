@@ -2,6 +2,8 @@
 import { body, query, validationResult } from 'express-validator';
 import { Trip } from '../models/Trip.js';
 import { Booking } from '../models/Booking.js';
+import dbPool from '../configs/db.js';
+import Seat from '../models/Seat.js';
 
 // Validation rules
 export const createTripValidation = [
@@ -49,6 +51,8 @@ export const searchTripsValidation = [
   query('sortOrder').optional().isIn(['ASC', 'DESC']).withMessage('Sort order must be ASC or DESC')
 ];
 
+
+
 // Get Trip Seat
 export const getTripSeatDetails = async (req, res) => {
   try {
@@ -62,14 +66,23 @@ export const getTripSeatDetails = async (req, res) => {
 
     // Fetch the booked seats for this trip
     // This requires a new method in your Booking model
-    const bookedSeats = await Booking.getBookedSeatsForTrip(id);
+    // const bookedSeats = await Booking.getBookedSeatsForTrip(id);
+
+    // const getSeatsDetails = await Seat.findAll({
+    //                           attributes: ['id', 'seat_number', 'status'],
+    //                           where: {
+    //                             "trip_id": id,
+    //                           },
+    //                         });
+
+    const getSeatsDetails = await Seat.findByTripId(id);
 
     res.json({
       success: true,
       data: {
         tripId: trip.id,
         basePrice: trip.basePrice,
-        bookedSeats: bookedSeats, // This will be an array like ["A1", "B5", "E3"]
+        bookedSeats: getSeatsDetails, // This will be an array like ["A1", "B5", "E3"]
       },
     });
 
@@ -80,6 +93,78 @@ export const getTripSeatDetails = async (req, res) => {
       message: 'Failed to get trip seat details',
       error: error.message,
     });
+  }
+};
+
+// Get Seat Details For Trip
+export const getSeatDetailsForTrip = async (req, res) => {
+  const { tripId } = req.params;
+
+  const trip = await query("SELECT basePrice, totalSeats FROM trips WHERE id = ?", [tripId]);
+  const bookedSeats = await query("SELECT seat_number FROM bookings WHERE trip_id = ?", [tripId]);
+
+  const totalSeats = trip[0].totalSeats || 40;
+  const basePrice = trip[0].basePrice;
+
+  const seats = Array.from({ length: totalSeats }, (_, i) => {
+    const seat_number = `A${i + 1}`;
+    return {
+      seat_number,
+      status: bookedSeats.some(b => b.seat_number === seat_number) ? "booked" : "available",
+      price: Number(basePrice),
+    };
+  });
+
+  res.json({ success: true, data: seats });
+  // try {
+  //   // 1. First, find which bus is assigned to this trip
+  //   const tripResult = await dbPool.query('SELECT bus_id FROM trips WHERE id = $1', [tripId]);
+
+  //   if (tripResult.rows.length === 0) {
+  //     return res.status(404).json({ success: false, message: 'Trip not found.' });
+  //   }
+  //   const busId = tripResult.rows[0].bus_id;
+
+  //   // 2. Now, fetch all seats for that bus
+  //   const seatsResult = await dbPool.query(
+  //     'SELECT seat_number, status, price FROM seats WHERE bus_id = $1 ORDER BY seat_number',
+  //     [busId]
+  //   );
+
+  //   res.status(200).json({
+  //     success: true,
+  //     data: seatsResult.rows // This will be an array of seat objects
+  //   });
+  // } catch (error) {
+  //   console.error('Error fetching seat details for trip:', error);
+  //   res.status(500).json({ success: false, message: 'Failed to fetch seat details.' });
+  // }
+};
+
+// Get Trips (Admin)
+export const getTrips = async (req, res) => {
+  try {
+    const trips = await Trip.findAll();
+    return res.status(200).json(trips);
+  } catch (error) {
+    console.error('Error fetching trips:', error);
+    return res.status(500).json({ message: 'Failed to load trips' });
+  }
+};
+// Delete Trip (Admin)
+export const deleteTrip = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deleted = await Trip.deleteById(id);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Trip not found' });
+    }
+
+    return res.status(200).json({ message: 'Trip deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting trip:', error);
+    return res.status(500).json({ message: 'Failed to delete trip' });
   }
 };
 
@@ -97,6 +182,17 @@ export const createTrip = async (req, res) => {
     }
 
     const tripData = req.body;
+
+    // Prevent creating trips in the past (compare date part of departureTime)
+    if (tripData.departureTime) {
+      const departure = new Date(tripData.departureTime);
+      const todayStart = new Date();
+      todayStart.setHours(0,0,0,0);
+      if (isNaN(departure.getTime()) || departure < todayStart) {
+        return res.status(400).json({ success: false, message: 'Cannot create trip for a past date' });
+      }
+    }
+
     const trip = await Trip.create(tripData);
 
     res.status(201).json({
@@ -288,6 +384,16 @@ export const updateTrip = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
+    // Prevent updating to a past departure date
+    if (updateData.departureTime) {
+      const departure = new Date(updateData.departureTime);
+      const todayStart = new Date();
+      todayStart.setHours(0,0,0,0);
+      if (isNaN(departure.getTime()) || departure < todayStart) {
+        return res.status(400).json({ success: false, message: 'Cannot update trip to a past date' });
+      }
+    }
+
     const trip = await Trip.update(id, updateData);
     if (!trip) {
       return res.status(404).json({
@@ -358,6 +464,8 @@ export const getPopularRoutes = async (req, res) => {
     });
   }
 };
+
+
 
 // Get available bus types
 export const getBusTypes = async (req, res) => {

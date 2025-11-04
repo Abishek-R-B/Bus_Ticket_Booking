@@ -35,8 +35,13 @@ const Checkout = () => {
   }, [isAuthenticated, location.state, navigate]);
   
   // A handler function to allow the child (PassengerData) to update this component's state.
+  // Accept either an updater function (prev => new) or a direct object.
   const handleBookingDetailsChange = (detailsUpdater) => {
-    setBookingDetails(detailsUpdater);
+    if (typeof detailsUpdater === 'function') {
+      setBookingDetails(prev => detailsUpdater(prev));
+    } else {
+      setBookingDetails(detailsUpdater);
+    }
   };
 
   if (!trip) {

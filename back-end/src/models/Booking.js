@@ -46,6 +46,16 @@ export class Booking {
     // Generate unique booking ID
     const bookingId = `BK${Date.now()}${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
 
+    // Normalize seatNumbers to a clean array of strings
+    const normalizedSeats = Array.isArray(seatNumbers)
+      ? seatNumbers.map(s => String(s).trim()).filter(Boolean)
+      : typeof seatNumbers === 'string'
+        ? seatNumbers.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+
+    // Always store seat numbers as valid JSON
+    const seatNumbersJson = JSON.stringify(normalizedSeats);
+
     const queryText = `
       INSERT INTO bookings (
         booking_id, user_id, trip_id, passenger_name, passenger_email,
@@ -65,7 +75,7 @@ export class Booking {
       passengerPhone,
       passengerAge,
       passengerGender,
-      JSON.stringify(seatNumbers),
+      seatNumbersJson,
       totalAmount,
       paymentMethod,
       travelDate
@@ -75,6 +85,7 @@ export class Booking {
       const result = await query(queryText, values);
       return new Booking(result.rows[0]);
     } catch (error) {
+      console.error('Error creating booking:', error);
       throw error;
     }
   }
@@ -274,34 +285,51 @@ export class Booking {
   }
 
   // Check if seats are available for booking
-  static async checkSeatAvailability(tripId, seatNumbers ,travelDate) {
+  static async checkSeatAvailability(tripId, seatNumbers, travelDate) {
     const queryText = `
-      SELECT seat_numbers 
-      FROM bookings 
-      WHERE trip_id = $1 
-      AND booking_status IN ('confirmed', 'pending')
-      AND travel_date = $2
-    `;
+    SELECT seat_numbers 
+    FROM bookings 
+    WHERE trip_id = $1 
+    AND booking_status IN ('confirmed', 'pending')
+    AND travel_date = $2
+  `;
 
     try {
       const result = await query(queryText, [tripId, travelDate]);
+
       const bookedSeats = result.rows.flatMap(row => {
         try {
-          return JSON.parse(row.seat_numbers);
-        } catch (parseError) {
-          console.warn('Error parsing seat_numbers:', parseError);
+          // Try to parse JSON first
+          const parsed = JSON.parse(row.seat_numbers);
+          return Array.isArray(parsed)
+            ? parsed.map(s => String(s).trim())
+            : [];
+        } catch {
+          // Fallback if seat_numbers is a comma-separated string
+          if (typeof row.seat_numbers === 'string') {
+            return row.seat_numbers
+              .split(',')
+              .map(s => s.trim())
+              .filter(Boolean);
+          }
           return [];
         }
       });
-      
-      const requestedSeats = Array.isArray(seatNumbers) ? seatNumbers : [seatNumbers];
-      const conflictingSeats = requestedSeats.filter(seat => bookedSeats.includes(seat));
-      
+
+      const requestedSeats = Array.isArray(seatNumbers)
+        ? seatNumbers.map(s => String(s).trim())
+        : [String(seatNumbers).trim()];
+
+      const conflictingSeats = requestedSeats.filter(seat =>
+        bookedSeats.includes(seat)
+      );
+
       return {
         available: conflictingSeats.length === 0,
         conflictingSeats
       };
     } catch (error) {
+      console.error('Error in checkSeatAvailability:', error);
       throw error;
     }
   }

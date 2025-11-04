@@ -4,6 +4,7 @@ import { FaMapMarkerAlt, FaSearch } from 'react-icons/fa'
 import { TbArrowsExchange } from 'react-icons/tb'
 import { useNavigate } from 'react-router-dom'
 import { useTrip } from '../../../../contexts/TripContext'
+import { toast } from 'react-toastify'
 
 const getTodayDateString = () => {
   const today = new Date();

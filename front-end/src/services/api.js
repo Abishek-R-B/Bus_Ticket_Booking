@@ -129,10 +129,10 @@ export const tripAPI = {
   },
 
   // Get seat details
-  getTripSeatDetails: async(tripId) => {
+  getTripSeatDetails: async (tripId) => {
     const response = await api.get(`/trips/${tripId}/seats`);
-    return response.data;
-  },  
+    return response.data; // Should return array of seat objects
+  },
 
   // Get all trips
   getAllTrips: async (page = 1, limit = 20) => {
@@ -171,8 +171,18 @@ export const tripAPI = {
     return response.data;
   },
 
+  deleteTrip: async (id) => {
+    const response = await api.delete(`/trips/${id}`);
+    return response.data;
+  },
+
   deactivateTrip: async (id) => {
     const response = await api.put(`/trips/${id}/deactivate`);
+    return response.data;
+  },
+
+  createSeatsForTrip: async (tripId) => {
+    const response = await api.post(`/seats/init/${tripId}`);
     return response.data;
   },
 
@@ -186,17 +196,9 @@ export const tripAPI = {
 export const bookingAPI = {
   // Create booking
   createBooking: async (bookingData) => {
-     try {
-      const response = await api.post('/bookings', bookingData);
-      // On success, return a structured success object
-      return { success: true, data: response.data };
-    } catch (error) {
-      // On failure, use your own utility function to format the error
-      const formattedError = apiUtils.handleError(error);
-      console.error("API Error creating booking:", formattedError); // Log the clean error for debugging
-      // Return a structured failure object
-      return { success: false, error: formattedError };
-    }
+    // bookingData should contain { tripId, seatNumbers, passengerDetails, etc. }
+    const response = await api.post('/bookings', bookingData);
+    return response.data;
   },
 
   // Get booking by ID
@@ -257,6 +259,7 @@ export const bookingAPI = {
     return response.data;
   },
 };
+
 
 // Utility functions
 export const apiUtils = {

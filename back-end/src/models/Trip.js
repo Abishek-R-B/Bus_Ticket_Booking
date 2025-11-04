@@ -73,7 +73,43 @@ export class Trip {
 
     try {
       const result = await query(queryText, values);
-      return new Trip(result.rows[0]);
+      const newTripRow = result.rows[0];
+
+      // Determine actual bus id to use for seats. Prefer provided busId, otherwise use the inserted row's bus_id.
+      const effectiveBusId = busId || newTripRow.bus_id || newTripRow.busId || null;
+
+      // Initialize seats for the bus if not already present.
+      // We'll create 37 seats: A1..A19 and B1..B18 (reasonable default layout).
+      try {
+        if (effectiveBusId) {
+          const existingSeats = await query('SELECT COUNT(*) as count FROM seats WHERE bus_id = $1', [effectiveBusId]);
+          const count = parseInt(existingSeats.rows[0].count, 10);
+          if (count === 0) {
+            const seatNumbers = [];
+            for (let i = 1; i <= 19; i++) seatNumbers.push(`A${i}`);
+            for (let i = 1; i <= 18; i++) seatNumbers.push(`B${i}`);
+
+            const placeholders = [];
+            const insertValues = [];
+            seatNumbers.forEach((sn, idx) => {
+              // For each seat we store: seat_number, status, price, bus_id
+              const base = idx * 4;
+              placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`);
+              insertValues.push(sn, 'available', basePrice, effectiveBusId);
+            });
+
+            const insertQuery = `INSERT INTO seats (seat_number, status, price, bus_id) VALUES ${placeholders.join(',')}`;
+            await query(insertQuery, insertValues);
+          }
+        } else {
+          console.warn('Skipping seat initialization: could not determine bus_id for new trip');
+        }
+      } catch (seatInitErr) {
+        // Non-fatal: log seat initialization error but continue returning the trip
+        console.error('Failed to initialize seats for bus:', seatInitErr);
+      }
+
+      return new Trip(newTripRow);
     } catch (error) {
       throw error;
     }
@@ -218,6 +254,7 @@ export class Trip {
     }
   }
 
+  
 
   // Get all trips with pagination
   static async getAllTrips(page = 1, limit = 20) {
@@ -232,6 +269,39 @@ export class Trip {
     try {
       const result = await query(queryText, [limit, offset]);
       return result.rows.map(row => new Trip(row));
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Find all trips (admin) - returns all trips regardless of is_active
+  static async findAll() {
+    const queryText = `SELECT * FROM trips ORDER BY created_at DESC`;
+    try {
+      const result = await query(queryText);
+      return result.rows.map(row => new Trip(row));
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Find by primary key (id)
+  static async findByPk(id) {
+    const queryText = 'SELECT * FROM trips WHERE id = $1';
+    try {
+      const result = await query(queryText, [id]);
+      return result.rows.length > 0 ? new Trip(result.rows[0]) : null;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Delete trip by id
+  static async deleteById(id) {
+    const queryText = 'DELETE FROM trips WHERE id = $1 RETURNING *';
+    try {
+      const result = await query(queryText, [id]);
+      return result.rows.length > 0 ? new Trip(result.rows[0]) : null;
     } catch (error) {
       throw error;
     }
