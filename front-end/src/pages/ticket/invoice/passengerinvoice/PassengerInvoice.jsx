@@ -27,18 +27,18 @@ const PassengerInvoice = ({ bookingData, currentSeatIndex }) => {
         <div className='w-full col-span-4 rounded-3xl relative'>
 
             {/* Top bus details */}
-            <div className="w-full flex items-center justify-between bg-primary px-6 py-3 rounded-tl-3xl">
+            <div className="w-full flex gap-8 items-center justify-between bg-primary px-5 py-6 rounded-tl-3xl">
                 <div className="flex items-center gap-x-3">
                     <img src={BusImg} alt="Bus" className="w-auto h-12 object-cover object-center" />
                     <h1 className="text-xl text-neutral-50 font-bold uppercase tracking-wider pt-1">
-                        {bookingData.busName}
+                        {bookingData?.busName}
                     </h1>
                 </div>
 
                 <div className="flex items-center gap-x-2">
                     <p className="text-xl text-neutral-50 font-bold">
                         <span className="text-lg">(Bus no.)</span>
-                        {bookingData.busNumber}
+                        {bookingData?.busNumber}
                     </p>
                 </div>
             </div>
@@ -71,7 +71,7 @@ const PassengerInvoice = ({ bookingData, currentSeatIndex }) => {
                             </p>
                             <p className="text-base text-neutral-600 flex gap-x-2">
                                 <span className="font-medium min-w-[140px]">Seat Number:</span>
-                                <span>{bookingData.seats[currentSeatIndex]}</span>
+                                <span>{(bookingData?.seats?.length > 0) ? bookingData.seats.join() : 0}</span>
                             </p>
                             <p className="text-base text-neutral-600 flex gap-x-2">
                                 <span className="font-medium min-w-[140px]">Total Seats:</span>

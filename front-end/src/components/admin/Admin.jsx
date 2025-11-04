@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
+import { tripAPI } from '../../services/api';
 
 // For date input min attribute
 const today = new Date().toISOString().split('T')[0];
@@ -182,6 +183,11 @@ function Admin() {
         console.log("CREATING trip with payload:", payload);
         const response = await api.post('/trips', payload);
         toast.success(response.data.message || 'Trip created successfully!');
+        // Initialize seats for the new trip
+        console.log("Trip response = ",response);
+        
+        const seatsResponse = await tripAPI.createSeatsForTrip(response?.data?.data?.trip?.id);
+        toast.success(seatsResponse.message || 'Seats created successfully! for the trip '+response?.data?.data?.id);
       }
       await fetchTrips();
       handleClearForm();

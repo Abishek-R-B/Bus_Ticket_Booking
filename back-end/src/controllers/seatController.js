@@ -87,24 +87,22 @@ export const bookSeats = async (req, res) => {
 // Initialize seats for a given trip
 export const initializeSeats = async (req, res) => {
   try {
-    const { fromCity, toCity, busId } = req.query;
+    const { tripId } = req.params;
 
-    if (!fromCity || !toCity || !busId) {
-      return res.status(400).json({ message: 'fromCity, toCity and busId are required' });
+    if (!tripId) {
+      return res.status(400).json({ message: 'tripId is required' });
     }
 
     // Fetch tripId automatically
-    const trip = await Trip.findOne({
-      where: { fromCity, toCity, busId }
-    });
+    const trip = await Trip.findById(tripId);
 
     if (!trip) {
       return res.status(404).json({ message: 'Trip not found for given route/bus' });
     }
 
     // Check existing seats
-    const existing = await Seat.count({ where: { tripId: trip.id } });
-    if (existing > 0) {
+    const existing = await Seat.findByTripId(trip.id);
+    if (existing.length > 0) {
       return res.status(200).json({ message: 'Seats already initialized', count: existing });
     }
 
@@ -119,9 +117,9 @@ export const initializeSeats = async (req, res) => {
       tripId: trip.id,
     }));
 
-    await Seat.bulkCreate(seatRows);
+    await Seat.createBulk(trip.id, seatRows);
 
-    return res.status(201).json({ message: 'Seats initialized', tripId: trip.id, count: seatRows.length });
+    return res.status(201).json({ message: 'Seats created successfully! for the trip '+trip.id, tripId: trip.id, count: seatRows.length });
   } catch (err) {
     console.error('initializeSeats error:', err);
     return res.status(500).json({ message: 'Failed to initialize seats' });

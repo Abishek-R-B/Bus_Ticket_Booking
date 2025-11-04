@@ -16,7 +16,7 @@ const BusSeat = ({ trip = null, loading = false }) => {
     const [seatData, setSeatData] = useState([]);
     const [isLoadingSeats, setIsLoadingSeats] = useState(true);
 
-    const seatMap = useMemo(() => new Map(seatData.map(seat => [String(seat.seat_number), seat])), [seatData]);
+const seatMap = useMemo(() => new Map(seatData.map(seat => [String(seat.seat_number), seat])), [seatData]);
     // NEW: Declarative layout matching the image provided
     const seatLayout = [
         ['A1', 'A3', 'A5', 'A7', 'A9', 'A11', 'A13', 'A15', 'A17'],
@@ -38,6 +38,9 @@ const BusSeat = ({ trip = null, loading = false }) => {
                     // 2) { success: true, data: { tripId, basePrice, bookedSeats: [] } }
                     // 3) directly an array
                     const payload = apiResp?.data ?? apiResp;
+                    
+                    console.log(payload);
+                    
 
                     if (Array.isArray(payload)) {
                         if (mounted) {
@@ -55,9 +58,9 @@ const BusSeat = ({ trip = null, loading = false }) => {
                         for (let i = 1; i <= 19; i++) seatNumbers.push(`A${i}`);
                         for (let i = 1; i <= 18; i++) seatNumbers.push(`B${i}`);
 
-                        const allSeats = seatNumbers.map(sn => ({
-                            seat_number: sn,
-                            status: bookedSeats.includes(sn) ? 'booked' : 'available',
+                        const allSeats = payload.bookedSeats.map(sn => ({
+                            seat_number: sn.seatNumber,
+                            status: sn.status,
                             price: basePrice,
                         }));
 
@@ -127,7 +130,10 @@ const BusSeat = ({ trip = null, loading = false }) => {
 
     // Determine seat style based on its status (no changes needed)
     const getSeatClassName = (seatId) => {
+        // console.log("getSeatClassName ..." +seatId);
+        
         const seat = seatMap.get(seatId);
+        // console.log("getSeatClassName ...",seat);
         if (!seat) return 'text-neutral-300 cursor-not-allowed'; // A seat in layout but not in API data? Disable.
 
         if (seat.status === 'booked') {
@@ -158,6 +164,41 @@ const BusSeat = ({ trip = null, loading = false }) => {
         pricePerSeat: trip?.basePrice ?? null,
         selectedSeats: selectedSeats,
         totalPrice: totalPrice,
+    };
+
+    // Create booking and navigate
+    const handleBooking = async () => {
+        if (!tripDetails.tripId || selectedSeats.length === 0) {
+            alert("Please select at least one seat before booking.");
+            return;
+        }
+
+        try {
+            const bookingPayload = {
+                tripId: tripDetails.tripId,
+                seats: selectedSeats,
+                totalPrice: tripDetails.totalPrice,
+                fromCity: tripDetails.from,
+                toCity: tripDetails.to,
+                departureTime: tripDetails.departureTime,
+                arrivalTime: tripDetails.arrivalTime,
+            };
+
+            console.log("Booking payload:", bookingPayload);
+
+            const response = await bookingAPI.createBooking(bookingPayload);
+
+            if (response?.success) {
+                console.log("✅ Booking successful:", response);
+                navigate("/bus-tickets/checkout", { state: { booking: response.data } });
+            } else {
+                console.error("❌ Booking failed:", response?.message || "Unknown error");
+                alert("Booking failed. Please try again.");
+            }
+        } catch (error) {
+            console.error("Error creating booking:", error);
+            alert("Something went wrong while booking seats.");
+        }
     };
 
     const navigateToCheckout = () => {

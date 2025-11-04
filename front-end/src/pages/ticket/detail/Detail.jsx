@@ -17,6 +17,8 @@ const Detail = () => {
     const params = useParams();
     const initialTrip = location.state?.trip ?? null;
     console.log(initialTrip);
+    console.log("params", params);
+    
     
     const [trip, setTrip] = useState(initialTrip);
     const [loadingTrip, setLoadingTrip] = useState(!initialTrip && !!params.id);

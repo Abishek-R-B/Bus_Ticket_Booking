@@ -34,7 +34,7 @@ const Navbar = () => {
 
 
   useEffect(() => {
-    console.log("Navbar component.. logged in user", user);
+    // console.log("Navbar component.. logged in user", user);
     
     const handleScroll = () => {
         const currentScrollState = window.scrollY;

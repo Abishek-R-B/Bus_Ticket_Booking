@@ -181,6 +181,11 @@ export const tripAPI = {
     return response.data;
   },
 
+  createSeatsForTrip: async (tripId) => {
+    const response = await api.post(`/seats/init/${tripId}`);
+    return response.data;
+  },
+
   updateAvailableSeats: async (id, seatChange) => {
     const response = await api.put(`/trips/${id}/seats`, { seatChange });
     return response.data;

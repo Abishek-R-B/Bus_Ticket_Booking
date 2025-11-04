@@ -45,7 +45,7 @@ function App() {
                                 {/* --- PROTECTED ROUTES (Only for logged-in users) --- */}
                                 <Route element={<ProtectedRoute />}>
                                     <Route path="/bus-tickets/checkout" element={<Checkout />} />
-                                    <Route path="/bus-tickets/payment/:bookingId" element={<Invoice />} />
+                                    <Route path="/bus-tickets/payment" element={<Invoice />} />
                                 </Route>
 
                                     <Route

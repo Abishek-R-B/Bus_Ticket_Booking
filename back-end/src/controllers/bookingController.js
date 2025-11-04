@@ -2,6 +2,7 @@
 import { body, query, validationResult } from 'express-validator';
 import { Booking } from '../models/Booking.js';
 import { Trip } from '../models/Trip.js';
+import Seat from '../models/Seat.js';
 
 // Validation rules
 export const createBookingValidation = [
@@ -78,17 +79,39 @@ export const createBooking = async (req, res) => {
       return res.status(400).json({ success: false, message: 'At least one seat number is required' });
     }
 
-    // Check seat availability (pass travelDate so availability is checked for that date)
-    const seatAvailability = await Booking.checkSeatAvailability(tripId, seatNumbersArray, travelDate);
-    if (!seatAvailability.available) {
-      return res.status(400).json({
-        success: false,
-        message: 'Selected seats are not available',
-        data: {
-          conflictingSeats: seatAvailability.conflictingSeats
-        }
-      });
+    // Check seat existence and availability using Seat model
+    try {
+      const seats = await Seat.findByTripIdAndSeatNumbers(tripId, seatNumbersArray);
+
+      // Check if all requested seat numbers exist for this trip
+      const foundSeatNumbers = seats.map(s => String(s.seatNumber).trim());
+      const missingSeats = seatNumbersArray.filter(s => !foundSeatNumbers.includes(s));
+      if (missingSeats.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'One or more selected seats do not exist for this trip',
+          data: { missingSeats }
+        });
+      }
+
+      // Check statuses
+      const notAvailable = seats.filter(s => !s.isAvailable());
+      if (notAvailable.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Selected seats are not available',
+          data: { conflictingSeats: notAvailable.map(s => s.seatNumber) }
+        });
+      }
+
+
+
+
+    } catch (seatCheckError) {
+      console.error('Seat availability check error:', seatCheckError);
+      return res.status(500).json({ success: false, message: 'Failed to check seat availability', error: seatCheckError.message });
     }
+    
 
     // Check if trip has enough seats
     const hasEnoughSeats = await Trip.hasEnoughSeats(tripId, seatNumbersArray.length);
@@ -114,8 +137,26 @@ export const createBooking = async (req, res) => {
       travelDate
     });
 
-    // Update available seats
-    await Trip.updateAvailableSeats(tripId, -seatNumbersArray.length);
+    // Mark seats as booked in the seats table. If this fails, cancel the booking and return error.
+    try {
+      // Use new helper to update by seat numbers (checks availability internally)
+      await Seat.updateStatusesBySeatNumbers(tripId, seatNumbersArray, 'booked', userId);
+
+      // Update available seats in trips table
+      await Trip.updateAvailableSeats(tripId, -seatNumbersArray.length);
+    } catch (seatUpdateError) {
+      console.error('Error updating seat statuses after booking creation:', seatUpdateError);
+      // Attempt to cancel the booking to avoid orphaned booking
+      try {
+        await Booking.cancel(booking.id, 'Seat allocation failed', 0);
+      } catch (cancelErr) {
+        console.error('Failed to cancel booking after seat update failure:', cancelErr);
+      }
+
+      // If seats became unavailable between check and update, return 400 with conflicting info when possible
+      const conflictMsg = seatUpdateError.message || 'Failed to allocate seats';
+      return res.status(400).json({ success: false, message: conflictMsg });
+    }
 
     res.status(201).json({
       success: true,

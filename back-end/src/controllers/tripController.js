@@ -3,6 +3,7 @@ import { body, query, validationResult } from 'express-validator';
 import { Trip } from '../models/Trip.js';
 import { Booking } from '../models/Booking.js';
 import dbPool from '../configs/db.js';
+import Seat from '../models/Seat.js';
 
 // Validation rules
 export const createTripValidation = [
@@ -65,14 +66,23 @@ export const getTripSeatDetails = async (req, res) => {
 
     // Fetch the booked seats for this trip
     // This requires a new method in your Booking model
-    const bookedSeats = await Booking.getBookedSeatsForTrip(id);
+    // const bookedSeats = await Booking.getBookedSeatsForTrip(id);
+
+    // const getSeatsDetails = await Seat.findAll({
+    //                           attributes: ['id', 'seat_number', 'status'],
+    //                           where: {
+    //                             "trip_id": id,
+    //                           },
+    //                         });
+
+    const getSeatsDetails = await Seat.findByTripId(id);
 
     res.json({
       success: true,
       data: {
         tripId: trip.id,
         basePrice: trip.basePrice,
-        bookedSeats: bookedSeats, // This will be an array like ["A1", "B5", "E3"]
+        bookedSeats: getSeatsDetails, // This will be an array like ["A1", "B5", "E3"]
       },
     });
 
