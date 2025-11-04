@@ -17,7 +17,6 @@ const Navbar = () => {
     {/*Navbar Items */}
   const navItems = [
     {label: "Home", link: "/"},
-    {label: "Services",link: "/services"},
     {label: "Tickets",link: "/bus-tickets"},
     {label: "About",link: "/about"},
   ]
@@ -35,6 +34,8 @@ const Navbar = () => {
 
 
   useEffect(() => {
+    console.log("Navbar component.. logged in user", user);
+    
     const handleScroll = () => {
         const currentScrollState = window.scrollY;
         if (currentScrollState > scrollPosition && currentScrollState >50){
@@ -96,13 +97,16 @@ const Navbar = () => {
                       <p className="text-sm font-medium text-gray-900">{user?.firstName} {user?.lastName}</p>
                       <p className="text-xs text-gray-500">{user?.email}</p>
                     </div>
-                    <Link 
-                      to="/profile" 
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      Profile
-                    </Link>
+                    {
+                      user?.role === 'admin' && <Link 
+                          to="/admin" 
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          Admin Settings
+                        </Link>
+                    }
+                    
                     <Link 
                       to="/my-bookings" 
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

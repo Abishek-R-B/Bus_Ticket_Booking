@@ -1,22 +1,80 @@
-import React, {useRef} from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import PassengerInvoice from './passengerinvoice/PassengerInvoice';
 import CompanyInvoice from './companyinvoice/CompanyInvoice';
 import { toPng } from 'html-to-image';
 import download from 'downloadjs';
 import RootLayout from '../../../layout/RootLayout';
 import TopLayout from '../../../layout/toppage/TopLayout';
+import { useParams, useLocation } from 'react-router-dom';
+import { bookingAPI } from '../../../services/api.js';
 
 const Invoice = () => {
-
+    const { bookingId } = useParams();
+    const location = useLocation();
+    const [bookingData, setBookingData] = useState(null);
+    const [currentTicket, setCurrentTicket] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const invoiceRef = useRef(null);
 
+    useEffect(() => {
+        const fetchBookingData = async () => {
+            try {
+                setLoading(true); // Start loading
+                let dataToSet = null;
+
+                // Priority 1: Check if data was passed via router state
+                const bookingFromState = location.state?.booking;
+                if (bookingFromState) {
+                    dataToSet = bookingFromState;
+                }
+                // Priority 2: If no state, fetch data using URL param
+                else if (bookingId) {
+                    dataToSet = await bookingAPI.getBookingByBookingId(bookingId);
+                }
+                // If neither is available, it's an error
+                else {
+                    setError('No booking information found.');
+                    setLoading(false);
+                    return;
+                }
+
+                // Now that we have data, normalize it
+                if (dataToSet) {
+                    const normalizedData = {
+                        ...dataToSet,
+                        // Ensure 'seats' is always an array
+                        seats: Array.isArray(dataToSet.seatNumbers)
+                            ? dataToSet.seatNumbers
+                            : Array.isArray(dataToSet.seats)
+                                ? dataToSet.seats
+                                : [],
+                    };
+                    setBookingData(normalizedData);
+                }
+            } catch (error) {
+                console.error("Error fetching/processing booking details:", error);
+                setError(error.message || 'Failed to load booking details');
+            } finally {
+                setLoading(false); // Stop loading
+            }
+        };
+
+        fetchBookingData();
+    }, [bookingId, location.state]);
+
     const handleDownload = async () => {
-        if (invoiceRef.current === null) return;
+        if (!invoiceRef.current || !bookingData) return;
+
         try {
-            // convert the invoice card to an image
-            const dataUrl = await toPng(invoiceRef.current);
-            download(dataUrl, "bus-ticket.png");
-            //npm install html-to-image downloadjs
+            // Generate and download a ticket for each seat
+            for (let i = 0; i < bookingData.seats.length; i++) {
+                setCurrentTicket(i);
+                // Wait for the state update to reflect in the DOM
+                await new Promise(resolve => setTimeout(resolve, 100));
+                const dataUrl = await toPng(invoiceRef.current);
+                download(dataUrl, `bus-ticket-${bookingData.seats[i]}.png`);
+            }
         } catch (error) {
             console.error("Error while downloading the invoice", error);
         }
@@ -31,40 +89,66 @@ const Invoice = () => {
             />
 
             <RootLayout className="space-y-12 w-full pb-16">
-                <div className="w-full flex items-center justify-center">
-
-                    {/* invoice card */}
-                    <div
-                        ref={invoiceRef}
-                        className="w-[90%] grid grid-cols-5 bg-white rounded-3xl border border-neutral-200 shadow-sm relative"
-                    >
-                        
-                        {/* Left side (for passenger) */}
-                        <PassengerInvoice />
-
-                        {/* Right side (for company) */}
-                        <CompanyInvoice />
-                        
-                        {/* Cut circle */}
-                        <div className="absolute -top-3 right-[18.8%] h-6 w-6 rounded-full bg-neutral-50 border border-neutral-50" />
-                        <div className="absolute -bottom-3 right-[18.8%] h-6 w-6 rounded-full bg-neutral-50 border border-neutral-50" />
-
+                {error && (
+                    <div className="w-full bg-red-50 border border-red-200 rounded-lg p-4 text-red-600">
+                        Error loading booking details: {error}
                     </div>
+                )}
 
-                </div>
+                {loading ? (
+                    <div className="w-full h-48 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+                    </div>
+                ) : (
+                    <>
+                        <div className="w-full flex items-center justify-center">
+                            {bookingData && (
+                                <div
+                                    ref={invoiceRef}
+                                    className="w-[90%] grid grid-cols-5 bg-white rounded-3xl border border-neutral-200 shadow-sm relative"
+                                >
+                                    {/* Left side (for passenger) */}
+                                    <PassengerInvoice
+                                        bookingData={bookingData}
+                                        currentSeatIndex={currentTicket}
+                                    />
 
-            {/* Download invoice card button */}
-            <div className="w-full flex justify-center items-center">
-                <button onClick={handleDownload} className="w-fit px-8 h-14 bg-primary text-neutral-50 font-bold text-lg rounded-lg">
-                    Download Invoice
-                </button> 
-            </div>
+                                    {/* Right side (for company) */}
+                                    <CompanyInvoice
+                                        bookingId={bookingData.bookingId}
+                                        bookingDate={bookingData.bookingDate}
+                                        passengerName={bookingData.passengerName}
+                                        fromCity={bookingData.fromCity}
+                                        toCity={bookingData.toCity}
+                                        pickupPoint={bookingData.pickupPoint}
+                                        dropPoint={bookingData.dropPoint}
+                                        departureTime={bookingData.departureTime}
+                                        arrivalTime={bookingData.arrivalTime}
+                                        seatNumber={bookingData.seats[currentTicket]}
+                                        contactPhone={bookingData.contactPhone}
+                                    />
 
-               
+                                    {/* Cut circles */}
+                                    <div className="absolute -top-3 right-[18.8%] h-6 w-6 rounded-full bg-neutral-50 border border-neutral-50" />
+                                    <div className="absolute -bottom-3 right-[18.8%] h-6 w-6 rounded-full bg-neutral-50 border border-neutral-50" />
+                                </div>
+                            )}
+                        </div>
 
+                        {bookingData && (
+                            <div className="w-full flex justify-center items-center">
+                                <button
+                                    onClick={handleDownload}
+                                    disabled={!bookingData?.seats?.length}
+                                    className="w-fit px-8 h-14 bg-primary text-neutral-50 font-bold text-lg rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+                                >
+                                    Download {bookingData.seats.length > 1 ? 'All Tickets' : 'Ticket'}
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
             </RootLayout>
-
-
         </div>
     )
 }

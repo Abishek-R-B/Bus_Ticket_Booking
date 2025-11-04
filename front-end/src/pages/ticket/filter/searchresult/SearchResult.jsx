@@ -15,8 +15,10 @@ const SearchResult = () => {
   const hasSearched = searchParams.fromCity && searchParams.toCity;
 
   const handleTripSelect = (trip) => {
-    navigate(`/bus-tickets/detail`, { 
-      state: { trip } 
+    // Navigate to a URL that includes the trip id so the page can be reloaded
+    // while still passing the full trip object in location.state as a fast path.
+    navigate(`/bus-tickets/detail/${trip.id}`, {
+      state: { trip },
     });
   };
 

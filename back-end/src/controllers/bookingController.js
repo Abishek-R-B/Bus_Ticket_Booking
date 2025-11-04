@@ -1,7 +1,7 @@
 // Booking controller for ticket reservations and payments
 import { body, query, validationResult } from 'express-validator';
-import { Booking } from '../models/booking.js';
-import { Trip } from '../models/trip.js';
+import { Booking } from '../models/Booking.js';
+import { Trip } from '../models/Trip.js';
 
 // Validation rules
 export const createBookingValidation = [
@@ -12,7 +12,10 @@ export const createBookingValidation = [
   body('passengerAge').isInt({ min: 1, max: 120 }).withMessage('Valid passenger age is required'),
   body('passengerGender').isIn(['male', 'female', 'other']).withMessage('Gender must be male, female, or other'),
   body('seatNumbers').isArray({ min: 1 }).withMessage('At least one seat number is required'),
-  body('seatNumbers.*').isInt({ min: 1 }).withMessage('Valid seat numbers are required'),
+  // Allow seat numbers to be strings (e.g. "B1") or integers. We normalize later in the handler.
+  body('seatNumbers.*').custom(value => {
+    return (typeof value === 'string' && value.trim() !== '') || Number.isInteger(value);
+  }).withMessage('Valid seat numbers are required (string like "B1" or integer).'),
   body('totalAmount').isFloat({ min: 0 }).withMessage('Total amount must be a positive number'),
   body('paymentMethod').isIn(['credit_card', 'debit_card', 'upi', 'net_banking', 'wallet']).withMessage('Valid payment method is required'),
   body('travelDate').isISO8601().withMessage('Valid travel date is required')
@@ -68,8 +71,15 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    // Check seat availability
-    const seatAvailability = await Booking.checkSeatAvailability(tripId, seatNumbers);
+    // Normalize seat numbers to strings (e.g. "B1")
+    const seatNumbersArray = Array.isArray(seatNumbers) ? seatNumbers.map(s => String(s).trim()) : [];
+
+    if (seatNumbersArray.length === 0) {
+      return res.status(400).json({ success: false, message: 'At least one seat number is required' });
+    }
+
+    // Check seat availability (pass travelDate so availability is checked for that date)
+    const seatAvailability = await Booking.checkSeatAvailability(tripId, seatNumbersArray, travelDate);
     if (!seatAvailability.available) {
       return res.status(400).json({
         success: false,
@@ -81,7 +91,7 @@ export const createBooking = async (req, res) => {
     }
 
     // Check if trip has enough seats
-    const hasEnoughSeats = await Trip.hasEnoughSeats(tripId, seatNumbers.length);
+    const hasEnoughSeats = await Trip.hasEnoughSeats(tripId, seatNumbersArray.length);
     if (!hasEnoughSeats) {
       return res.status(400).json({
         success: false,
@@ -89,7 +99,7 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    // Create booking
+    // Create booking (Booking.create JSON.stringify's seatNumbers)
     const booking = await Booking.create({
       userId,
       tripId,
@@ -98,14 +108,14 @@ export const createBooking = async (req, res) => {
       passengerPhone,
       passengerAge,
       passengerGender,
-      seatNumbers,
+      seatNumbers: seatNumbersArray,
       totalAmount,
       paymentMethod,
       travelDate
     });
 
     // Update available seats
-    await Trip.updateAvailableSeats(tripId, -seatNumbers.length);
+    await Trip.updateAvailableSeats(tripId, -seatNumbersArray.length);
 
     res.status(201).json({
       success: true,
@@ -412,12 +422,12 @@ export const getBookingsByDateRange = async (req, res) => {
 // Check seat availability
 export const checkSeatAvailability = async (req, res) => {
   try {
-    const { tripId, seatNumbers } = req.query;
+    const { tripId, seatNumbers, travelDate } = req.query;
 
-    if (!tripId || !seatNumbers) {
+    if (!tripId || !seatNumbers || !travelDate) {
       return res.status(400).json({
         success: false,
-        message: 'Trip ID and seat numbers are required'
+        message: 'Trip ID, travelDate and seat numbers are required'
       });
     }
 
@@ -430,13 +440,14 @@ export const checkSeatAvailability = async (req, res) => {
         message: 'Invalid seat numbers format'
       });
     }
-    const availability = await Booking.checkSeatAvailability(tripId, seatNumbersArray);
+    const availability = await Booking.checkSeatAvailability(tripId, seatNumbersArray, travelDate);
 
     res.json({
       success: true,
       data: {
         tripId,
         seatNumbers: seatNumbersArray,
+        travelDate,
         available: availability.available,
         conflictingSeats: availability.conflictingSeats
       }

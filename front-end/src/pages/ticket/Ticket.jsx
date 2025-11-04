@@ -4,7 +4,7 @@ import TopLayout from '../../layout/toppage/TopLayout'
 import RootLayout from '../../layout/RootLayout'
 import { motion } from 'framer-motion'
 import Search from '../home/hero/search/Search'
-import Filter from './filter/Filter'
+// import Filter from './filter/Filter'
 import SearchResult from './filter/searchresult/SearchResult'
 import { useTrip } from '../../contexts/TripContext'
 
@@ -69,12 +69,12 @@ const Ticket = () => {
                   <Search/>
           </div>
 
-          <div className="w-full h-auto grid grid-cols-4 gap-16 relative">
+          <div className="w-full rounded-none p-5 border-2 border-neutral-300 space-y-5 hover:border-primary transition-colors duration-300">
           {/*Filter Section */}
-          <div className="col-span-1">
-            {/* 3. Pass the onFilterChange prop to the Filter component */}
-            <Filter className="space-y-4 sticky top-52 z-20" onFilterChange={handleFilterChange} />
-          </div>
+          {/* <div className="col-span-1">
+            
+            //<Filter className="space-y-4 sticky top-52 z-20" onFilterChange={handleFilterChange} />
+          </div> */}
 
           {/*Search Tickets */}
           <div className="col-span-3">

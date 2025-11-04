@@ -3,7 +3,9 @@
 import React from 'react';
 
 const BookingStatus = ({ trip, bookingDetails }) => {
-
+  console.log('BookingStatus trip data:');
+  console.log(trip);
+  
   const formatTime = (timeString) => {
     if (!timeString) return '';
     const date = new Date(timeString);
@@ -23,11 +25,18 @@ const BookingStatus = ({ trip, bookingDetails }) => {
 
         <div className="space-y-5">
           <div className="space-y-2 w-full">
-            <h1 className="text-base text-neutral-700 font-medium">Your Destination</h1>
-            <div className="space-y-0.5 w-full">
-               {/* ... same destination JSX ... */}
+            <h1 className="text-base text-neutral-700 font-medium">Your Trip</h1>
+            <div className="w-full flex items-center justify-between gap-x-5">
+              <p className="text-sm text-neutral-400 font-normal">
+                From <span className="text-xs">({trip.from})</span>
+              </p>
+              <p className="text-sm text-neutral-400 font-normal">
+                To <span className="text-xs">({trip.to})</span>
+              </p>
             </div>
           </div>
+
+            
 
           <div className="space-y-2 w-full">
             <h1 className="text-base text-neutral-700 font-medium">Your Seats</h1>

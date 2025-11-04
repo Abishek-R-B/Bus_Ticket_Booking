@@ -9,6 +9,8 @@ import { FaPlus } from 'react-icons/fa';
 import { useBooking } from '../../../../../contexts/BookingContext';
 
 const PaymentMethod = ({ trip, passengers, contactDetails, bookingDetails, onBookingDetailsChange, validateForm }) => {
+  console.log("PaymentMethod received trip prop:", trip);
+  
   const navigate = useNavigate();
   const { createBooking, isLoading } = useBooking();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,19 +33,18 @@ const PaymentMethod = ({ trip, passengers, contactDetails, bookingDetails, onBoo
     // --- FINAL PAYLOAD FIX ---
     
     // 1. Extract the NUMERICAL IDs from the full seat objects passed in the trip prop.
-    const allSeatIDs = trip.selectedSeats.map(seat => seat.id);
     const primaryPassenger = passengers[0] || {}; 
 
     // 2. Construct the payload with valid data from the complete trip object
     const bookingPayload = {
-        tripId: trip.id, // Now valid
+        tripId: trip.tripId, // Now valid
         passengerName: primaryPassenger.name || '',
         passengerEmail: contactDetails.email || '',
         passengerPhone: contactDetails.phone || '',
         passengerAge: parseInt(primaryPassenger.age, 10) || 0,
         passengerGender: primaryPassenger.gender || 'male',
-        seatNumbers: allSeatIDs, // Now an array of numbers like [7, 8], not strings
-        travelDate: trip.travelDate, // Now valid
+        seatNumbers: trip.selectedSeats, // Now an array of numbers like [7, 8], not strings
+        travelDate: trip.departureTime, // Now valid
         pickupPoint: bookingDetails.pickupPoint,
         dropPoint: bookingDetails.dropPoint,
         paymentMethod: bookingDetails.paymentMethod,
